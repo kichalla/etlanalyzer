@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reactive.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Diagnostics.Tracing;
@@ -60,9 +61,8 @@ namespace ETLAnalyzer
         private static readonly List<ProfileSample> _profileSamples = new List<ProfileSample>();
         private static ProfileSample _currentProfileSample = null;
         private static double _totalJitTimeInMSec;
-        private static long _currentMethodBeingJitted;
-        private static double _currentMethodJittedTimeInMSec;
         private static bool _enteredEntryPoint = false;
+        private static int numofJittedmethods = 0;
 
         static void Main(string[] args)
         {
@@ -76,12 +76,29 @@ namespace ETLAnalyzer
             {
                 eventSource.Kernel.ProcessStart += Kernel_ProcessStart;
                 eventSource.Clr.RuntimeStart += Clr_RuntimeStart;
-                eventSource.Clr.MethodJittingStarted += Clr_MethodJittingStarted;
-                eventSource.Clr.MethodLoadVerbose += Clr_MethodLoadVerbose; // When method is loaded inidcating jitting has finished
                 eventSource.Kernel.ProcessStop += Kernel_ProcessStop; // to indicate that one sample data has finished
                 eventSource.Clr.LoaderAssemblyLoad += Clr_LoaderAssemblyLoad;
                 eventSource.Clr.LoaderAssemblyUnload += Clr_LoaderAssemblyUnload;
                 eventSource.Dynamic.All += Dynamic_All;
+
+                // From TraceEvent samples
+                IObservable<MethodJittingStartedTraceData> jitStartStream = eventSource.Clr.Observe<MethodJittingStartedTraceData>("Method/JittingStarted");
+                IObservable<MethodLoadUnloadVerboseTraceData> jitEndStream = eventSource.Clr.Observe<MethodLoadUnloadVerboseTraceData>("Method/LoadVerbose");
+                var jitTimes =
+                    from start in jitStartStream
+                    from end in jitEndStream.Where(e => start.MethodID == e.MethodID && start.ProcessID == e.ProcessID).Take(1)
+                    select new
+                    {
+                        JitTIme = end.TimeStampRelativeMSec - start.TimeStampRelativeMSec
+                    };
+                jitTimes.Subscribe(onNext: jitData =>
+                {
+                    if (_enteredEntryPoint)
+                    {
+                        numofJittedmethods++;
+                        _totalJitTimeInMSec += jitData.JitTIme;
+                    }
+                });
 
                 eventSource.Process();
             }
@@ -132,29 +149,9 @@ namespace ETLAnalyzer
             _currentProfileSample.ClrStart_TimeStampRelativeMSec = traceData.TimeStampRelativeMSec;
         }
 
-        private static void Clr_MethodJittingStarted(MethodJittingStartedTraceData traceData)
-        {
-            _currentMethodBeingJitted = traceData.MethodID;
-            _currentMethodJittedTimeInMSec = traceData.TimeStampRelativeMSec;
-        }
-
         private static void Clr_LoaderAssemblyLoad(AssemblyLoadUnloadTraceData traceData)
         {
 
-        }
-
-        static int numofJittedmethods = 0;
-        private static void Clr_MethodLoadVerbose(MethodLoadUnloadVerboseTraceData traceData)
-        {
-            if (traceData.MethodID == _currentMethodBeingJitted)
-            {
-                if (_enteredEntryPoint)
-                {
-                    numofJittedmethods++;
-                    var jitTimeOfCurrentMethod = (traceData.TimeStampRelativeMSec - _currentMethodJittedTimeInMSec);
-                    _totalJitTimeInMSec += jitTimeOfCurrentMethod;
-                }
-            }
         }
 
         private static void Dynamic_All(TraceEvent traceEvent)
@@ -205,8 +202,6 @@ namespace ETLAnalyzer
             // reset the current profiling sample
             _currentProfileSample = null;
             _totalJitTimeInMSec = 0;
-            _currentMethodBeingJitted = 0;
-            _currentMethodJittedTimeInMSec = 0;
             _enteredEntryPoint = false;
             numofJittedmethods = 0;
         }
