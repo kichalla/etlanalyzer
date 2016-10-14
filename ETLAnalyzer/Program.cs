@@ -12,47 +12,56 @@ using Microsoft.Diagnostics.Tracing.Parsers.Kernel;
 
 namespace ETLAnalyzer
 {
-    class ProfileSample
+    internal class ProfileSample
     {
         public double ProcessStart_TimeStampRelativeMSec { get; set; }
         public double ClrStart_TimeStampRelativeMSec { get; set; }
-        public double MainAppDllLoad_TimeStampRelativeMSec { get; set; }
-        public double JitStart_TimeStampRelativeMSec { get; set; }
-        public double AppStart_TimeStampRelativeMSec { get; set; }
-        public double AppStartupStart_TimeStampRelativeMSec { get; set; }
-        public double AppStartupStop_TimeStampRelativeMSec { get; set; }
+        public double EnteringAppEntryPoint_TimeStampRelativeMSec { get; set; }
+        public TimeSpan TotalTimeSpentInJitting { get; set; }
         public double HostStarted_TimeStampRelativeMSec { get; set; }
         public double RequestStart_TimeStampRelativeMSec { get; set; }
-        // Assembly load start?
+        public double RequestStop_TimeStampRelativeMSec { get; set; }
 
-        public TimeSpan ElapsedTime_BeforeClrStarts()
+        public TimeSpan ElapsedTimeBeforeClrStarts
         {
-            return TimeSpan.FromMilliseconds(ClrStart_TimeStampRelativeMSec - ProcessStart_TimeStampRelativeMSec);
+            get
+            {
+                return TimeSpan.FromMilliseconds(ClrStart_TimeStampRelativeMSec - ProcessStart_TimeStampRelativeMSec);
+            }
         }
 
-        public TimeSpan ElapsedTime_BeforeHostStarts()
+        public TimeSpan ElapsedTime_BeforeEnteringAppEntryPoint
         {
-            return TimeSpan.FromMilliseconds(HostStarted_TimeStampRelativeMSec - ClrStart_TimeStampRelativeMSec);
+            get
+            {
+                return TimeSpan.FromMilliseconds(EnteringAppEntryPoint_TimeStampRelativeMSec - ClrStart_TimeStampRelativeMSec);
+            }
         }
 
-        public string ToCSVFormat()
+        public TimeSpan ElapsedTime_BeforeHostStarts
         {
-            var sb = new StringBuilder();
-            var y = (int)ElapsedTime_BeforeClrStarts().TotalMilliseconds;
-            sb.AppendFormat($"{y}, ");
-            y = (int)ElapsedTime_BeforeHostStarts().TotalMilliseconds;
-            sb.Append(y);
-            return sb.ToString();
+            get
+            {
+                return TimeSpan.FromMilliseconds(HostStarted_TimeStampRelativeMSec - EnteringAppEntryPoint_TimeStampRelativeMSec);
+            }
+        }
+
+        public TimeSpan RequestProcessingTimeInMsec
+        {
+            get
+            {
+                return TimeSpan.FromMilliseconds(RequestStop_TimeStampRelativeMSec - RequestStart_TimeStampRelativeMSec);
+            }
         }
     }
 
-    class Program
+    internal class Program
     {
-        static readonly List<ProfileSample> _profileSamples = new List<ProfileSample>();
-        static ProfileSample _currentProfileSample = null;
-        static double _totalJitTimeInMSec;
-        static string _currentMethodBeingJitted;
-        static double _currentMethodJittedTimeInMSec;
+        private static readonly List<ProfileSample> _profileSamples = new List<ProfileSample>();
+        private static ProfileSample _currentProfileSample = null;
+        private static double _totalJitTimeInMSec;
+        private static string _currentMethodBeingJitted;
+        private static double _currentMethodJittedTimeInMSec;
 
         static void Main(string[] args)
         {
@@ -132,7 +141,7 @@ namespace ETLAnalyzer
             {
                 if (traceEvent.EventName == "EnteringMain")
                 {
-                    _currentProfileSample.AppStart_TimeStampRelativeMSec = traceEvent.TimeStampRelativeMSec;
+                    _currentProfileSample.EnteringAppEntryPoint_TimeStampRelativeMSec = traceEvent.TimeStampRelativeMSec;
                     return;
                 }
 
@@ -142,28 +151,14 @@ namespace ETLAnalyzer
                     return;
                 }
             }
-
-            // ConfigureServices is called before Configure
-            if (traceEvent.ProviderName == "AspNetCoreHostingEventSource")
-            {
-                if (traceEvent.EventName == "StartConfigureApplicationServices")
-                {
-                    _currentProfileSample.AppStartupStart_TimeStampRelativeMSec = traceEvent.TimeStampRelativeMSec;
-                    return;
-                }
-
-                if (traceEvent.EventName == "EndConfigureMiddlewarePipeline")
-                {
-                    _currentProfileSample.AppStartupStop_TimeStampRelativeMSec = traceEvent.TimeStampRelativeMSec;
-                    return;
-                }
-            }
         }
 
         private static void Kernel_ProcessEnd(ProcessTraceData traceData)
         {
             if (traceData.ProcessName == "dotnet")
             {
+                _currentProfileSample.TotalTimeSpentInJitting = TimeSpan.FromMilliseconds(_totalJitTimeInMSec);
+
                 // reset the current profiling sample
                 _currentProfileSample = null;
             }
