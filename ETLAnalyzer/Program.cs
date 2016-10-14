@@ -62,6 +62,7 @@ namespace ETLAnalyzer
         private static double _totalJitTimeInMSec;
         private static string _currentMethodBeingJitted;
         private static double _currentMethodJittedTimeInMSec;
+        private static bool _enteredEntryPoint = false;
 
         static void Main(string[] args)
         {
@@ -146,8 +147,12 @@ namespace ETLAnalyzer
             var methodName = traceData.MethodNamespace + "." + traceData.MethodName;
             if (methodName == _currentMethodBeingJitted)
             {
-                var jitTimeOfCurrentMethod = (traceData.TimeStampRelativeMSec - _currentMethodJittedTimeInMSec);
-                _totalJitTimeInMSec += jitTimeOfCurrentMethod;
+                if (_enteredEntryPoint)
+                {
+                    var jitTimeOfCurrentMethod = (traceData.TimeStampRelativeMSec - _currentMethodJittedTimeInMSec);
+                    Console.WriteLine(Math.Round(jitTimeOfCurrentMethod, 1) + " : " + methodName);
+                    _totalJitTimeInMSec += Math.Round(jitTimeOfCurrentMethod, 1);
+                }
             }
         }
 
@@ -157,6 +162,7 @@ namespace ETLAnalyzer
             {
                 if (traceEvent.EventName == "EnteringMain")
                 {
+                    _enteredEntryPoint = true;
                     _currentProfileSample.EnteringAppEntryPoint_TimeStampRelativeMSec = traceEvent.TimeStampRelativeMSec;
                     return;
                 }
@@ -200,6 +206,7 @@ namespace ETLAnalyzer
             _totalJitTimeInMSec = 0;
             _currentMethodBeingJitted = null;
             _currentMethodJittedTimeInMSec = 0;
+            _enteredEntryPoint = false;
         }
     }
 }
