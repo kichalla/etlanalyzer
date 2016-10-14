@@ -107,15 +107,15 @@ namespace ETLAnalyzer
             {
                 using (var streamWriter = new StreamWriter(fileStream))
                 {
-                    streamWriter.WriteLine("ClrStartTime, EnteredEntryPoint, HostStarted, TotalJitTime, RequestProcessTime");
+                    streamWriter.WriteLine("ClrStartTime, EnteredEntryPoint, HostStarted, RequestProcessTime, TotalJitTime");
                     foreach (var sample in _profileSamples)
                     {
                         streamWriter.WriteLine(
                             sample.ElapsedTimeBeforeClrStarts.TotalMilliseconds + "," +
                             sample.ElapsedTime_BeforeEnteringAppEntryPoint.TotalMilliseconds + "," +
                             sample.ElapsedTime_BeforeHostStarts.TotalMilliseconds + "," +
-                            sample.TotalTimeSpentInJitting.TotalMilliseconds + "," +
-                            sample.RequestProcessingTime.TotalMilliseconds);
+                            sample.RequestProcessingTime.TotalMilliseconds + "," +
+                            sample.TotalTimeSpentInJitting.TotalMilliseconds);
                     }
                 }
             }
@@ -151,7 +151,7 @@ namespace ETLAnalyzer
 
         private static void Clr_LoaderAssemblyLoad(AssemblyLoadUnloadTraceData traceData)
         {
-
+            
         }
 
         private static void Dynamic_All(TraceEvent traceEvent)
