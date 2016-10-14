@@ -60,7 +60,7 @@ namespace ETLAnalyzer
         private static readonly List<ProfileSample> _profileSamples = new List<ProfileSample>();
         private static ProfileSample _currentProfileSample = null;
         private static double _totalJitTimeInMSec;
-        private static string _currentMethodBeingJitted;
+        private static long _currentMethodBeingJitted;
         private static double _currentMethodJittedTimeInMSec;
         private static bool _enteredEntryPoint = false;
 
@@ -86,7 +86,7 @@ namespace ETLAnalyzer
                 eventSource.Process();
             }
 
-            using (var fileStream = File.Create($@"C:\Users\kichalla\Documents\profileinfo\{Guid.NewGuid().ToString()}.csv"))
+            using (var fileStream = File.Create($@"C:\profiling\{Guid.NewGuid().ToString()}.csv"))
             {
                 using (var streamWriter = new StreamWriter(fileStream))
                 {
@@ -112,6 +112,7 @@ namespace ETLAnalyzer
                 {
                     _currentProfileSample.TotalTimeSpentInJitting = TimeSpan.FromMilliseconds(_totalJitTimeInMSec);
                 }
+                Console.WriteLine(numofJittedmethods);
                 ResetData();
             }
         }
@@ -133,7 +134,7 @@ namespace ETLAnalyzer
 
         private static void Clr_MethodJittingStarted(MethodJittingStartedTraceData traceData)
         {
-            _currentMethodBeingJitted = traceData.MethodNamespace + "." + traceData.MethodName;
+            _currentMethodBeingJitted = traceData.MethodID;
             _currentMethodJittedTimeInMSec = traceData.TimeStampRelativeMSec;
         }
 
@@ -142,16 +143,16 @@ namespace ETLAnalyzer
 
         }
 
+        static int numofJittedmethods = 0;
         private static void Clr_MethodLoadVerbose(MethodLoadUnloadVerboseTraceData traceData)
         {
-            var methodName = traceData.MethodNamespace + "." + traceData.MethodName;
-            if (methodName == _currentMethodBeingJitted)
+            if (traceData.MethodID == _currentMethodBeingJitted)
             {
                 if (_enteredEntryPoint)
                 {
+                    numofJittedmethods++;
                     var jitTimeOfCurrentMethod = (traceData.TimeStampRelativeMSec - _currentMethodJittedTimeInMSec);
-                    Console.WriteLine(Math.Round(jitTimeOfCurrentMethod, 1) + " : " + methodName);
-                    _totalJitTimeInMSec += Math.Round(jitTimeOfCurrentMethod, 1);
+                    _totalJitTimeInMSec += jitTimeOfCurrentMethod;
                 }
             }
         }
@@ -204,9 +205,10 @@ namespace ETLAnalyzer
             // reset the current profiling sample
             _currentProfileSample = null;
             _totalJitTimeInMSec = 0;
-            _currentMethodBeingJitted = null;
+            _currentMethodBeingJitted = 0;
             _currentMethodJittedTimeInMSec = 0;
             _enteredEntryPoint = false;
+            numofJittedmethods = 0;
         }
     }
 }
