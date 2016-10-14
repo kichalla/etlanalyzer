@@ -46,7 +46,7 @@ namespace ETLAnalyzer
             }
         }
 
-        public TimeSpan RequestProcessingTimeInMsec
+        public TimeSpan RequestProcessingTime
         {
             get
             {
@@ -77,26 +77,42 @@ namespace ETLAnalyzer
                 eventSource.Clr.RuntimeStart += Clr_RuntimeStart;
                 eventSource.Clr.MethodJittingStarted += Clr_MethodJittingStarted;
                 eventSource.Clr.MethodLoadVerbose += Clr_MethodLoadVerbose; // When method is loaded inidcating jitting has finished
-                eventSource.Kernel.ProcessStop += Kernel_ProcessEnd; // to indicate that one sample data has finished
+                eventSource.Kernel.ProcessStop += Kernel_ProcessStop; // to indicate that one sample data has finished
                 eventSource.Clr.LoaderAssemblyLoad += Clr_LoaderAssemblyLoad;
+                eventSource.Clr.LoaderAssemblyUnload += Clr_LoaderAssemblyUnload;
                 eventSource.Dynamic.All += Dynamic_All;
 
                 eventSource.Process();
             }
 
-            //using (var f = File.Create(@"c:\testing\profile.csv"))
-            //{
-            //    using (var streamWriter = new StreamWriter(f))
-            //    {
-            //        streamWriter.WriteLine("ProcessStart, ClrStart, HostStarted");
-            //        foreach (var sample in samples)
-            //        {
-            //            streamWriter.WriteLine(sample.ToCSVFormat());
-            //        }
-            //    }
-            //}
+            using (var fileStream = File.Create($@"C:\Users\kichalla\Documents\profileinfo\{Guid.NewGuid().ToString()}.csv"))
+            {
+                using (var streamWriter = new StreamWriter(fileStream))
+                {
+                    streamWriter.WriteLine("ClrStartTime, EnteredEntryPoint, HostStarted, TotalJitTime, RequestProcessTime");
+                    foreach (var sample in _profileSamples)
+                    {
+                        streamWriter.WriteLine(
+                            sample.ElapsedTimeBeforeClrStarts.TotalMilliseconds + "," +
+                            sample.ElapsedTime_BeforeEnteringAppEntryPoint.TotalMilliseconds + "," +
+                            sample.ElapsedTime_BeforeHostStarts.TotalMilliseconds + "," +
+                            sample.TotalTimeSpentInJitting.TotalMilliseconds + "," +
+                            sample.RequestProcessingTime.TotalMilliseconds);
+                    }
+                }
+            }
+        }
 
-            //Console.WriteLine("Total JIT timein MSec: " + _totalJitTimeInMSec);
+        private static void Clr_LoaderAssemblyUnload(AssemblyLoadUnloadTraceData obj)
+        {
+            if (obj.FullyQualifiedAssemblyName.Contains("MusicStore"))
+            {
+                if (_currentProfileSample != null)
+                {
+                    _currentProfileSample.TotalTimeSpentInJitting = TimeSpan.FromMilliseconds(_totalJitTimeInMSec);
+                }
+                ResetData();
+            }
         }
 
         private static void Kernel_ProcessStart(ProcessTraceData traceData)
@@ -151,17 +167,39 @@ namespace ETLAnalyzer
                     return;
                 }
             }
+
+            if (traceEvent.ProviderName == "AspNetCoreHostingEventSource")
+            {
+                if (traceEvent.EventName == "RequestStart")
+                {
+                    _currentProfileSample.RequestStart_TimeStampRelativeMSec = traceEvent.TimeStampRelativeMSec;
+                    return;
+                }
+
+                if (traceEvent.EventName == "RequestEnd")
+                {
+                    _currentProfileSample.RequestStop_TimeStampRelativeMSec = traceEvent.TimeStampRelativeMSec;
+                    return;
+                }
+            }
         }
 
-        private static void Kernel_ProcessEnd(ProcessTraceData traceData)
+        private static void Kernel_ProcessStop(ProcessTraceData traceData)
         {
             if (traceData.ProcessName == "dotnet")
             {
-                _currentProfileSample.TotalTimeSpentInJitting = TimeSpan.FromMilliseconds(_totalJitTimeInMSec);
-
-                // reset the current profiling sample
-                _currentProfileSample = null;
+                // this is not firing
+                Console.WriteLine("dotnet process stop");
             }
+        }
+
+        private static void ResetData()
+        {
+            // reset the current profiling sample
+            _currentProfileSample = null;
+            _totalJitTimeInMSec = 0;
+            _currentMethodBeingJitted = null;
+            _currentMethodJittedTimeInMSec = 0;
         }
     }
 }
