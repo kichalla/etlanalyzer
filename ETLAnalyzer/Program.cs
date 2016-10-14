@@ -129,7 +129,7 @@ namespace ETLAnalyzer
                 {
                     _currentProfileSample.TotalTimeSpentInJitting = TimeSpan.FromMilliseconds(_totalJitTimeInMSec);
                 }
-                Console.WriteLine(numofJittedmethods);
+                //Console.WriteLine(numofJittedmethods);
                 ResetData();
             }
         }
@@ -174,7 +174,7 @@ namespace ETLAnalyzer
 
             if (traceEvent.ProviderName == "AspNetCoreHostingEventSource")
             {
-                if (traceEvent.EventName == "RequestStart")
+                if (traceEvent.EventName == "Request/Start")
                 {
                     _currentProfileSample.RequestStart_TimeStampRelativeMSec = traceEvent.TimeStampRelativeMSec;
                     return;
