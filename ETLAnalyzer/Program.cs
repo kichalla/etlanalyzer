@@ -66,9 +66,10 @@ namespace ETLAnalyzer
 
         static void Main(string[] args)
         {
-            if (args.Length == 0)
+            if (args.Length != 2)
             {
-                Console.WriteLine("Invalid number of arguments. Provide full file path to the .etl file.");
+                Console.WriteLine("Invalid number of arguments.");
+                Console.WriteLine("Usage: <Full-path-to-ETL-file> <Full-path-to-csv-file-to-create>");
                 return;
             }
 
@@ -103,7 +104,7 @@ namespace ETLAnalyzer
                 eventSource.Process();
             }
 
-            using (var fileStream = File.Create($@"C:\profiling\{Guid.NewGuid().ToString()}.csv"))
+            using (var fileStream = File.Create(args[1]))
             {
                 using (var streamWriter = new StreamWriter(fileStream))
                 {
