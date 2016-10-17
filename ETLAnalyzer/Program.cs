@@ -108,15 +108,24 @@ namespace ETLAnalyzer
             {
                 using (var streamWriter = new StreamWriter(fileStream))
                 {
-                    streamWriter.WriteLine("ClrStartTime, EnteredEntryPoint, HostStarted, RequestProcessTime, TotalJitTime");
+                    streamWriter.WriteLine("ClrStartTime, EnteredEntryPoint, HostStarted, RequestProcessTime, TotalJitTime, TotalJitTime %");
                     foreach (var sample in _profileSamples)
                     {
+                        var totalTime = sample.ElapsedTimeBeforeClrStarts.TotalMilliseconds +
+                            sample.ElapsedTime_BeforeEnteringAppEntryPoint.TotalMilliseconds +
+                            sample.ElapsedTime_BeforeHostStarts.TotalMilliseconds +
+                            sample.RequestProcessingTime.TotalMilliseconds;
+                        var jitTimePercentage = Math.Round((sample.TotalTimeSpentInJitting.TotalMilliseconds / totalTime) * 100, 1);
+
                         streamWriter.WriteLine(
                             sample.ElapsedTimeBeforeClrStarts.TotalMilliseconds + "," +
                             sample.ElapsedTime_BeforeEnteringAppEntryPoint.TotalMilliseconds + "," +
                             sample.ElapsedTime_BeforeHostStarts.TotalMilliseconds + "," +
                             sample.RequestProcessingTime.TotalMilliseconds + "," +
-                            sample.TotalTimeSpentInJitting.TotalMilliseconds);
+                            sample.TotalTimeSpentInJitting.TotalMilliseconds + "," +
+                            jitTimePercentage);
+
+
                     }
                 }
             }
@@ -152,7 +161,7 @@ namespace ETLAnalyzer
 
         private static void Clr_LoaderAssemblyLoad(AssemblyLoadUnloadTraceData traceData)
         {
-            
+
         }
 
         private static void Dynamic_All(TraceEvent traceEvent)
