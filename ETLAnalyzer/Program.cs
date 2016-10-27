@@ -15,19 +15,28 @@ namespace ETLAnalyzer
 {
     internal class ProfileSample
     {
-        public double ProcessStart_TimeStampRelativeMSec { get; set; }
+        public double PreDotnetProcessStart_TimeStampRelativeMSec { get; set; }
+        public double DotnetProcessStart_TimeStampRelativeMSec { get; set; }
         public double ClrStart_TimeStampRelativeMSec { get; set; }
         public double EnteringAppEntryPoint_TimeStampRelativeMSec { get; set; }
-        public TimeSpan TotalTimeSpentInJitting { get; set; }
         public double HostStarted_TimeStampRelativeMSec { get; set; }
         public double RequestStart_TimeStampRelativeMSec { get; set; }
         public double RequestStop_TimeStampRelativeMSec { get; set; }
+
+
+        public TimeSpan ElapsedTimeBeforeDotnetProcessStarts
+        {
+            get
+            {
+                return TimeSpan.FromMilliseconds(DotnetProcessStart_TimeStampRelativeMSec - PreDotnetProcessStart_TimeStampRelativeMSec);
+            }
+        }
 
         public TimeSpan ElapsedTimeBeforeClrStarts
         {
             get
             {
-                return TimeSpan.FromMilliseconds(ClrStart_TimeStampRelativeMSec - ProcessStart_TimeStampRelativeMSec);
+                return TimeSpan.FromMilliseconds(ClrStart_TimeStampRelativeMSec - DotnetProcessStart_TimeStampRelativeMSec);
             }
         }
 
@@ -60,10 +69,8 @@ namespace ETLAnalyzer
     {
         private static readonly List<ProfileSample> _profileSamples = new List<ProfileSample>();
         private static ProfileSample _currentProfileSample = null;
-        private static double _totalJitTimeInMSec;
         private static bool _enteredEntryPoint = false;
-        private static int numofJittedmethods = 0;
-
+        
         static void Main(string[] args)
         {
             if (args.Length != 2)
@@ -78,28 +85,7 @@ namespace ETLAnalyzer
                 eventSource.Kernel.ProcessStart += Kernel_ProcessStart;
                 eventSource.Clr.RuntimeStart += Clr_RuntimeStart;
                 eventSource.Kernel.ProcessStop += Kernel_ProcessStop; // to indicate that one sample data has finished
-                eventSource.Clr.LoaderAssemblyLoad += Clr_LoaderAssemblyLoad;
-                eventSource.Clr.LoaderAssemblyUnload += Clr_LoaderAssemblyUnload;
                 eventSource.Dynamic.All += Dynamic_All;
-
-                // From TraceEvent samples
-                IObservable<MethodJittingStartedTraceData> jitStartStream = eventSource.Clr.Observe<MethodJittingStartedTraceData>("Method/JittingStarted");
-                IObservable<MethodLoadUnloadVerboseTraceData> jitEndStream = eventSource.Clr.Observe<MethodLoadUnloadVerboseTraceData>("Method/LoadVerbose");
-                var jitTimes =
-                    from start in jitStartStream
-                    from end in jitEndStream.Where(e => start.MethodID == e.MethodID && start.ProcessID == e.ProcessID).Take(1)
-                    select new
-                    {
-                        JitTIme = end.TimeStampRelativeMSec - start.TimeStampRelativeMSec
-                    };
-                jitTimes.Subscribe(onNext: jitData =>
-                {
-                    if (_enteredEntryPoint)
-                    {
-                        numofJittedmethods++;
-                        _totalJitTimeInMSec += jitData.JitTIme;
-                    }
-                });
 
                 eventSource.Process();
             }
@@ -108,60 +94,42 @@ namespace ETLAnalyzer
             {
                 using (var streamWriter = new StreamWriter(fileStream))
                 {
-                    streamWriter.WriteLine("ClrStartTime, EnteredEntryPoint, HostStarted, RequestProcessTime, TotalJitTime, TotalJitTime %");
+                    streamWriter.WriteLine("DotnetStartTime, ClrStartTime, EnteredEntryPoint, HostStarted, RequestProcessTime");
                     foreach (var sample in _profileSamples)
                     {
-                        var totalTime = sample.ElapsedTimeBeforeClrStarts.TotalMilliseconds +
-                            sample.ElapsedTime_BeforeEnteringAppEntryPoint.TotalMilliseconds +
-                            sample.ElapsedTime_BeforeHostStarts.TotalMilliseconds +
-                            sample.RequestProcessingTime.TotalMilliseconds;
-                        var jitTimePercentage = Math.Round((sample.TotalTimeSpentInJitting.TotalMilliseconds / totalTime) * 100, 1);
-
                         streamWriter.WriteLine(
+                            sample.ElapsedTimeBeforeDotnetProcessStarts.TotalMilliseconds + "," +
                             sample.ElapsedTimeBeforeClrStarts.TotalMilliseconds + "," +
                             sample.ElapsedTime_BeforeEnteringAppEntryPoint.TotalMilliseconds + "," +
                             sample.ElapsedTime_BeforeHostStarts.TotalMilliseconds + "," +
-                            sample.RequestProcessingTime.TotalMilliseconds + "," +
-                            sample.TotalTimeSpentInJitting.TotalMilliseconds + "," +
-                            jitTimePercentage);
-
-
+                            sample.RequestProcessingTime.TotalMilliseconds);
                     }
                 }
             }
         }
 
-        private static void Clr_LoaderAssemblyUnload(AssemblyLoadUnloadTraceData obj)
-        {
-            if (obj.FullyQualifiedAssemblyName.Contains("MusicStore"))
-            {
-                if (_currentProfileSample != null)
-                {
-                    _currentProfileSample.TotalTimeSpentInJitting = TimeSpan.FromMilliseconds(_totalJitTimeInMSec);
-                }
-                //Console.WriteLine(numofJittedmethods);
-                ResetData();
-            }
-        }
-
         private static void Kernel_ProcessStart(ProcessTraceData traceData)
         {
-            if (traceData.ProcessName == "dotnet")
+            if (traceData.ImageFileName == "w3wp.exe")
             {
+                Console.WriteLine("Id of w3sp.exe: " + traceData.ProcessID);
                 _currentProfileSample = new ProfileSample();
                 _profileSamples.Add(_currentProfileSample);
-                _currentProfileSample.ProcessStart_TimeStampRelativeMSec = traceData.TimeStampRelativeMSec;
+                _currentProfileSample.PreDotnetProcessStart_TimeStampRelativeMSec = traceData.TimeStampRelativeMSec;
+            }
+
+            if (traceData.ImageFileName == "dotnet.exe")
+            {
+                Console.WriteLine("Parent Id of dotnet.exe: " + traceData.ParentID);
+                Console.WriteLine(traceData.CommandLine);
+                Console.WriteLine();
+                _currentProfileSample.DotnetProcessStart_TimeStampRelativeMSec = traceData.TimeStampRelativeMSec;
             }
         }
 
         private static void Clr_RuntimeStart(RuntimeInformationTraceData traceData)
         {
             _currentProfileSample.ClrStart_TimeStampRelativeMSec = traceData.TimeStampRelativeMSec;
-        }
-
-        private static void Clr_LoaderAssemblyLoad(AssemblyLoadUnloadTraceData traceData)
-        {
-
         }
 
         private static void Dynamic_All(TraceEvent traceEvent)
@@ -172,12 +140,6 @@ namespace ETLAnalyzer
                 {
                     _enteredEntryPoint = true;
                     _currentProfileSample.EnteringAppEntryPoint_TimeStampRelativeMSec = traceEvent.TimeStampRelativeMSec;
-                    return;
-                }
-
-                if (traceEvent.EventName == "HostStarted")
-                {
-                    _currentProfileSample.HostStarted_TimeStampRelativeMSec = traceEvent.TimeStampRelativeMSec;
                     return;
                 }
             }
@@ -195,15 +157,21 @@ namespace ETLAnalyzer
                     _currentProfileSample.RequestStop_TimeStampRelativeMSec = traceEvent.TimeStampRelativeMSec;
                     return;
                 }
+
+                if (traceEvent.EventName == "HostStartEnd")
+                {
+                    _currentProfileSample.HostStarted_TimeStampRelativeMSec = traceEvent.TimeStampRelativeMSec;
+                    return;
+                }
             }
         }
 
         private static void Kernel_ProcessStop(ProcessTraceData traceData)
         {
-            if (traceData.ProcessName == "dotnet")
+            // NOTE: ProcessName property is empty so using ImageFileName
+            if (traceData.ImageFileName == "w3wp.exe")
             {
-                // this is not firing
-                Console.WriteLine("dotnet process stop");
+                ResetData();
             }
         }
 
@@ -211,9 +179,7 @@ namespace ETLAnalyzer
         {
             // reset the current profiling sample
             _currentProfileSample = null;
-            _totalJitTimeInMSec = 0;
             _enteredEntryPoint = false;
-            numofJittedmethods = 0;
         }
     }
 }
