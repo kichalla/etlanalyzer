@@ -1,14 +1,13 @@
-## Steps to reproduce or link to a repro project
+#### Steps to reproduce or link to a repro project
 
 
-## Expected  behavior
+#### Expected  behavior
 
 
-## Actual behavior
+#### Actual behavior
 
 
-## Environment data
-Version of `Microsoft.AspNetCore.App` or `Microsoft.AspNetCore.All` used:
+#### Version of `Microsoft.AspNetCore.App` or `Microsoft.AspNetCore.All` used:
 
 
 
