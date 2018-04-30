@@ -17,7 +17,4 @@
 2. Try enabling logging (in the most verbose level) 
    and see if the details help you in fixing the issue
    you are seeing.
-3. While we do our best to look through all the issues 
-   filed here, to get a faster response we suggest posting 
-   your questions to StackOverflow.com using the 'asp.net-core-mvc' tag.
 -->
