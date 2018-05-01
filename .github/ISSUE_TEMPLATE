@@ -1,3 +1,6 @@
+#### Is this a Bug or Feature request?:
+
+
 #### Steps to reproduce or link to a repro project:
 
 
@@ -8,17 +11,19 @@
 
 
 #### Environment Information:
-**TargetFramework (can be found in .csproj file):**
+- **TargetFramework (can be found in .csproj file):**
 
-**MVC version(Use version of `Microsoft.AspNetCore.App` or `Microsoft.AspNetCore.All` or `Microsoft.AspNetCore.Mvc.Core`):**
+
+- **Version of `Microsoft.AspNetCore.Mvc` or `Microsoft.AspNetCore.App` or `Microsoft.AspNetCore.All`:**
 
 
 
 <!--
-                    --- NOTE ---
-1. If you are seeing an exception, include the full 
-   exceptions details (message and stack trace).
-2. Try enabling logging (in the most verbose level) 
-   and see if the details help you in fixing the issue
-   you are seeing.
+                            --- NOTE ---
+1.  Try enabling logging (in the most verbose level) and see if the details help
+    you in fixing the issue you are seeing. Share the logs too if it helps in
+    diagnosing the issue faster.
+
+2.  If you are seeing an exception, include the full exceptions details (message
+    and stack trace).
 -->
