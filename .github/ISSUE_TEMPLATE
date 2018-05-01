@@ -4,18 +4,10 @@
 #### Steps to reproduce or link to a repro project:
 
 
-#### Expected  behavior:
+#### Description of the problem:
 
 
-#### Actual behavior:
-
-
-#### Environment Information:
-- **TargetFramework (can be found in .csproj file):**
-
-
-- **Version of `Microsoft.AspNetCore.Mvc` or `Microsoft.AspNetCore.App` or `Microsoft.AspNetCore.All`:**
-
+#### Version of `Microsoft.AspNetCore.Mvc` or `Microsoft.AspNetCore.App` or `Microsoft.AspNetCore.All`:
 
 
 <!--
@@ -23,7 +15,13 @@
 1.  Try enabling logging (in the most verbose level) and see if the details help
     you in fixing the issue you are seeing. Share the logs too if it helps in
     diagnosing the issue faster.
+    More info: https://docs.microsoft.com/en-us/aspnet/core/fundamentals/logging
 
 2.  If you are seeing an exception, include the full exceptions details (message
     and stack trace).
+    More info: https://docs.microsoft.com/en-us/aspnet/core/fundamentals/error-handling
+
+3.  If you believe you have an issue that affects the security of the platform please do
+    not create an issue, instead email you issue to 'secure@microsoft.com'. Your report may
+    be eligible for our bug bounty. More info: https://technet.microsoft.com/en-us/mt764065.aspx
 -->
